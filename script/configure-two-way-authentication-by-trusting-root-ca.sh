@@ -24,6 +24,8 @@ cleanUpExistingCertificatesAndKeystores() {
     rm -fv server/src/main/resources/server-signed.p12
     rm -fv server/src/main/resources/truststore.jks
 
+    rm -fv root-ca/*
+
     echo 'Finished cleanup'
 }
 
@@ -36,6 +38,7 @@ createCertificates() {
     keytool -exportcert -keystore server/src/main/resources/identity.jks -storepass secret -alias server -rfc -file server/src/main/resources/server.cer
     keytool -certreq -keystore server/src/main/resources/identity.jks -alias server -keypass secret -storepass secret -keyalg rsa -file server/src/main/resources/server.csr
     keytool -certreq -keystore client/src/test/resources/identity.jks -alias client -keypass secret -storepass secret -keyalg rsa -file client/src/test/resources/client.csr
+    keytool -genkeypair -keyalg RSA -keysize 2048 -alias root-ca -dname "CN=Root-CA,OU=Certificate Authority,O=Thunderberry,C=NL" -validity 3650 -ext bc:c -keystore root-ca/identity.jks -storepass secret -keypass secret -deststoretype pkcs12
     keytool -importkeystore -srckeystore root-ca/identity.jks -destkeystore root-ca/root-ca.p12 -srcstoretype jks -deststoretype pkcs12 -srcstorepass secret -deststorepass secret
     openssl pkcs12 -in root-ca/root-ca.p12 -out root-ca/root-ca.pem -nokeys -passin pass:secret -passout pass:secret
     openssl pkcs12 -in root-ca/root-ca.p12 -out root-ca/root-ca.key -nocerts -passin pass:secret -passout pass:secret
@@ -66,11 +69,6 @@ configureApplicationProperties() {
     echo -e 'spring:\n  main:\n    banner-mode: "off"\n    web-application-type: none\n\nlogging:\n  level:\n    nl.altindag.sslcontext: INFO\n\nclient:\n  ssl:\n    one-way-authentication-enabled: false\n    two-way-authentication-enabled: true\n    key-store: identity.jks\n    key-store-password: secret\n    trust-store: truststore.jks\n    trust-store-password: secret'  >> client/src/test/resources/application.yml
 }
 
-configureClientRequestToUseHttps() {
-    echo 'Configuring client to send request to HTTPS'
-    sed -E -i.bak 's/http:\/\/localhost:8080/https:\/\/localhost:8443/g' client/src/main/java/nl/altindag/client/Constants.java
-}
-
 #Validate if provided argument is present
 if [[ -z "$1" ]]; then
     echo "No common name is provided to create the Client Certificate"
@@ -78,5 +76,5 @@ else
     cleanUpExistingCertificatesAndKeystores
     createCertificates "$1"
     configureApplicationProperties
-    configureClientRequestToUseHttps
 fi
+
